@@ -1,2 +1,2 @@
 # Spencer-s-Gits
-Repository for development in allignment with CYB333 assignments.
+Repository for development in alignment with CYB333 assignments.
