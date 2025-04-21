@@ -1,0 +1,108 @@
+###Import modules for socket, system, and ping utilities
+import socket
+import sys
+import platform
+import subprocess
+
+###Set up function for trial of specified port
+def scan_port(host, port):
+    """Attempts to connect to a specific port on a given host."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(1)  # Timeout after 1 second
+            result = sock.connect_ex((host, port))
+            if result == 0:
+                return True  # Port is open
+            else:
+                return False  # Port is closed
+
+    ###Error messages that will assist in troubleshooting, reaffirmed by ping utility later in script
+    except socket.gaierror:
+        print(f"[ERROR] Hostname '{host}' could not be resolved.")
+        sys.exit()
+    except socket.error:
+        print(f"[ERROR] Couldn't connect to server '{host}'.")
+        sys.exit()
+
+###Set up function to ensure user inputted port range is logical and valid
+def validate_port(port):
+    """Validates that a port number is within the valid range."""
+    if 1 <= port <= 65535:
+        return True
+    else:
+        return False
+
+###Ping utility to ensure the script does not blindly run on an IP address that isn't even connected
+def check_host_reachable(host):
+    """Pings the host to check if it is reachable."""
+    # Detect OS (Windows uses different ping syntax)
+    param = "-n" if platform.system().lower() == "windows" else "-c"
+    
+    # Build the ping command
+    command = ["ping", param, "1", host]
+    
+    try:
+        output = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+	###Print statement of success to indicate the script will proceed with the scan on the connected IP
+        if output.returncode == 0:
+            print(f"[INFO] Host {host} is reachable (ping successful).\n")
+            return True
+
+	###Print statement of failure indicating the script will exit due to no connection
+        else:
+            print(f"[WARNING] Host {host} is not reachable (ping failed).")
+            return False
+    except Exception as e:
+        print(f"[ERROR] Ping failed: {e}")
+        return False
+
+###Scan function, here is the meat and potatoes of the previous functions that assess the availability of a port
+def port_scanner(host, start_port, end_port):
+    """Scans a range of ports on the specified host."""
+    print(f"\n[SCANNER] Scanning {host} from port {start_port} to {end_port}...\n")
+    for port in range(start_port, end_port + 1):
+        if scan_port(host, port):
+            print(f"[OPEN] Port {port}")
+        else:
+            print(f"[CLOSED] Port {port}")
+
+###Setup the initial interaction with the user
+def main():
+    """Main function to run the port scanner."""
+    print("=== Simple Python Port Scanner ===")
+    
+    host = input("Enter the target (an IP address or scanme.nmap.org for testing): ").strip()
+
+    try:
+        start_port = int(input("Enter the start port (1-65535): ").strip())
+        end_port = int(input("Enter the end port (1-65535): ").strip())
+
+	###Exit message if port range does not match format or is outside of range
+        if not (validate_port(start_port) and validate_port(end_port)):
+            print("[INPUT ERROR] Ports must be between 1 and 65535.")
+            sys.exit()
+
+	###Exit message if port range is not logical
+        if start_port > end_port:
+            print("[INPUT ERROR] Start port must be less than or equal to end port.")
+            sys.exit()
+
+	###Exit message if the ping utility fails
+        if not check_host_reachable(host):
+            print("[EXIT] Host is unreachable. Exiting scan.")
+            sys.exit()
+
+        port_scanner(host, start_port, end_port)
+
+    except ValueError:
+        print("[INPUT ERROR] Invalid input. Ports must be numbers.")
+        sys.exit()
+
+if __name__ == "__main__":
+    main()

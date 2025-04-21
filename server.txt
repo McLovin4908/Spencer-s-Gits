@@ -1,0 +1,38 @@
+###Import Socket Module
+import socket
+
+###Initial server function assignment of port and IP
+def start_server(host='127.0.0.1', port=65432):
+    """Starts a TCP server that listens for incoming client connections."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+
+	###Open the port, listening for client connection
+        try:
+            server_socket.bind((host, port))
+            server_socket.listen()
+            print(f"[SERVER] Listening on {host}:{port}...")
+
+	    ###Indicate success when connection recieved
+            conn, addr = server_socket.accept()
+            with conn:
+                print(f"[SERVER] Connected by {addr}")
+                while True:
+                    data = conn.recv(1024)
+
+		    ###Print statement when exited or disconnected
+                    if not data:
+                        print("[SERVER] Client disconnected.")
+                        break
+
+		    ###Print statement indicating successful exchange
+                    print(f"[SERVER] Received: {data.decode()}")
+                    response = "Message received!"
+                    conn.sendall(response.encode())
+
+	###General error statement for socket connection
+        except socket.error as e:
+            print(f"[SERVER ERROR] {e}")
+
+###Check for external call of script, then execute server execution
+if __name__ == "__main__":
+    start_server()

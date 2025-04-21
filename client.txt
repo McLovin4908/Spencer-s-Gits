@@ -1,0 +1,33 @@
+###Import Socket Module
+import socket
+
+###Begin defining the function for client to server interaction
+def start_client(host='127.0.0.1', port=65432):
+    """Connects to a TCP server and exchanges messages."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+
+	###Begin try loop that liaisons the interaction of messages to the server
+        try:
+	    ###Socket connection with print statement reaffirming IP and port
+            client_socket.connect((host, port))
+            print(f"[CLIENT] Connected to server at {host}:{port}")
+
+	    ###While statement that continues interaction with server until exit or termination
+            while True:
+                message = input("[CLIENT] Enter message (or 'exit' to quit): ")
+                if message.lower() == 'exit':
+                    print("[CLIENT] Disconnecting...")
+                    break
+                client_socket.sendall(message.encode())
+                data = client_socket.recv(1024)
+                print(f"[CLIENT] Server replied: {data.decode()}")
+
+	###Conditional errors with print statements to assist troubleshooting
+        except ConnectionRefusedError:
+            print("[CLIENT ERROR] Cannot connect to server. Is it running?")
+        except socket.error as e:
+            print(f"[CLIENT ERROR] {e}")
+
+###Check for external call of script, then execute client connection
+if __name__ == "__main__":
+    start_client()
