@@ -1,0 +1,76 @@
+import win32evtlog
+import win32evtlogutil
+import win32con
+import json
+from datetime import datetime
+
+# Configuration
+log_types = ["System", "Application"]
+events_per_log = 100
+output_file = "event_log_review.json"
+
+# Severity mapping
+severity_scores = {
+    win32con.EVENTLOG_INFORMATION_TYPE: 1,
+    win32con.EVENTLOG_WARNING_TYPE: 2,
+    win32con.EVENTLOG_ERROR_TYPE: 3,
+    win32con.EVENTLOG_AUDIT_FAILURE: 3,
+    win32con.EVENTLOG_AUDIT_SUCCESS: 1
+}
+
+severity_names = {
+    win32con.EVENTLOG_INFORMATION_TYPE: "Information",
+    win32con.EVENTLOG_WARNING_TYPE: "Warning",
+    win32con.EVENTLOG_ERROR_TYPE: "Error",
+    win32con.EVENTLOG_AUDIT_FAILURE: "Audit Failure",
+    win32con.EVENTLOG_AUDIT_SUCCESS: "Audit Success"
+}
+
+# Store all events
+all_events = []
+
+for log_type in log_types:
+    hand = win32evtlog.OpenEventLog(None, log_type)
+    flags = win32evtlog.EVENTLOG_BACKWARDS_READ | win32evtlog.EVENTLOG_SEQUENTIAL_READ
+
+    print(f"Reading {log_type} log...")
+
+    total = 0
+    while total < events_per_log:
+        events = win32evtlog.ReadEventLog(hand, flags, 0)
+        if not events:
+            break
+        for event in events:
+            evt_type = event.EventType
+            evt_time = event.TimeGenerated.Format()
+            evt_id = event.EventID & 0xFFFF  # Mask out category bits
+            evt_source = str(event.SourceName)
+            evt_category = event.EventCategory
+            evt_msg = win32evtlogutil.SafeFormatMessage(event, log_type) if hasattr(win32evtlogutil, 'SafeFormatMessage') else "N/A"
+
+            score = severity_scores.get(evt_type, 1)
+            severity = severity_names.get(evt_type, "Unknown")
+
+            all_events.append({
+                "log": log_type,
+                "timestamp": evt_time,
+                "source": evt_source,
+                "event_id": evt_id,
+                "category": evt_category,
+                "severity": severity,
+                "score": score,
+                "message": evt_msg.strip()
+            })
+
+            total += 1
+            if total >= events_per_log:
+                break
+
+# Sort by score descending
+all_events.sort(key=lambda e: e["score"], reverse=True)
+
+# Save to JSON
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(all_events, f, indent=2)
+
+print(f"\nEvent log analysis complete. {len(all_events)} events saved to {output_file}.")

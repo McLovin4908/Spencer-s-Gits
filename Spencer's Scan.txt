@@ -1,0 +1,92 @@
+import socket
+import ipaddress
+import json
+import time
+import nmap
+import shutil
+import concurrent.futures
+
+# -------- CONFIGURATION --------
+subnet = "192.168.8.0/24"  # change to your local subnet
+common_ports = [21, 22, 23, 25, 53, 80, 139, 143, 443, 445, 3389, 8080]  # can expand as needed
+output_file = "scan_results.json"
+timeout = 1  # seconds
+max_threads = 50  # concurrency level
+# --------------------------------
+
+# Check if Nmap is available
+nmap_path = shutil.which("nmap")
+use_nmap = nmap_path is not None
+if not use_nmap:
+    print("Nmap executable not found. Proceeding with socket scan only.")
+
+# Initialize scanner
+nm = nmap.PortScanner() if use_nmap else None
+
+# Track results and time
+scan_results = {}
+start_time = time.time()
+
+def scan_host(ip):
+    ip_str = str(ip)
+    host_info = {"ip": ip_str, "open_ports": []}
+
+    # ---------- Socket Scan ----------
+    for port in common_ports:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(timeout)
+                result = s.connect_ex((ip_str, port))
+                if result == 0:
+                    host_info["open_ports"].append({
+                        "port": port,
+                        "service": "unknown",
+                        "source": "socket"
+                    })
+        except Exception:
+            pass
+
+    # ---------- Nmap Scan ----------
+    if use_nmap:
+        try:
+            nm.scan(ip_str, arguments='-sS -T4')
+            for proto in nm[ip_str].all_protocols():
+                lport = nm[ip_str][proto].keys()
+                for port in sorted(lport):
+                    # Avoid duplicate ports already found by socket
+                    if not any(p['port'] == port for p in host_info["open_ports"]):
+                        service = nm[ip_str][proto][port]['name']
+                        host_info["open_ports"].append({
+                            "port": port,
+                            "service": service,
+                            "source": "nmap"
+                        })
+        except Exception as e:
+            print(f"[!] Nmap error on {ip_str}: {e}")
+
+    # Save results only if ports found
+    if host_info["open_ports"]:
+        scan_results[ip_str] = host_info
+
+# Generate all IPs in subnet
+ip_list = list(ipaddress.IPv4Network(subnet, strict=False).hosts())
+
+# Run scans concurrently
+with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+    executor.map(scan_host, ip_list)
+
+# Duration and metadata
+duration = time.time() - start_time
+host_count = ipaddress.IPv4Network(subnet, strict=False).num_addresses
+scan_results["metadata"] = {
+    "subnet_scanned": subnet,
+    "host_count": host_count,
+    "duration_seconds": round(duration, 2)
+}
+
+# Save results
+with open(output_file, "w") as f:
+    json.dump(scan_results, f, indent=2)
+
+print(f"\nScan complete. {len(scan_results) - 1} hosts found with open ports.")
+print("Results saved to: {output_file}")

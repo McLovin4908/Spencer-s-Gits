@@ -1,0 +1,65 @@
+import json
+
+# Function to load JSON files
+def load_json(file_name):
+    with open(file_name, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# Mapping for common services associated with ports
+service_remediation = {
+    80: "HTTP - If not needed, consider closing port 80.",
+    443: "HTTPS - Secure port for web traffic, ensure it's needed for your services.",
+    8080: "HTTP Alternate - Commonly used for web applications, close if unnecessary.",
+    21: "FTP - If not used, disable this port to avoid data interception.",
+    22: "SSH - Ensure only authorized users have access, disable if not needed.",
+    23: "Telnet - Vulnerable to attacks, close this port immediately if not used.",
+    25: "SMTP - If not configured for email, consider closing port 25.",
+    3306: "MySQL - Ensure only trusted IPs have access, disable if not needed.",
+    3389: "RDP - Highly targeted by attackers, ensure strong passwords and disable if not needed."
+}
+
+# Mapping for event-based remediation
+event_remediation = {
+    "audit_failure": "Critical audit failure indicates potential security breach attempts. Review user login attempts and check firewall logs.",
+    "packet_swarm": "Multiple failed connections detected, indicating possible packet flooding. Check firewall rules and adjust rate limits.",
+    "unauthorized_access": "Unauthorized access detected. Review user privileges and audit logs for suspicious activity.",
+    "malware_alert": "Malware behavior detected in event logs. Run a full antivirus scan and ensure your antivirus is up-to-date.",
+    "privilege_escalation": "Privilege escalation attempt detected. Check logs for suspicious user activity and tighten privilege management."
+}
+
+# Function to analyze open ports from the vulnerability scan results
+def analyze_open_ports(scan_results):
+    for ip, details in scan_results.items():
+        if ip == "metadata":
+            continue
+        
+        for port in details["open_ports"]:
+            port_number = port["port"]
+            service = port["service"]
+            # Check if port is in the service remediation map
+            if port_number in service_remediation:
+                print(f"[VULNERABILITY] Port {port_number} is open ({service}). {service_remediation[port_number]}")
+
+# Function to analyze event logs for critical events
+def analyze_events(event_results):
+    for event in event_results:
+        if event["severity"] == "Error" or event["severity"] == "Audit Failure" or event["severity"] == "Critical":
+            event_msg = event["message"].lower()
+            print(f"[EVENT] Critical event detected: {event_msg}")
+            # Provide remediation for specific event types (this is just an example, you can expand with more event types)
+            for keyword, remediation in event_remediation.items():
+                if keyword in event_msg:
+                    print(f"  Suggested Action: {remediation}")
+
+# Load vulnerability scan results (replace with the actual path to your JSON)
+scan_results = load_json("scan_results.json")
+
+# Load event log results (replace with the actual path to your JSON)
+event_results = load_json("event_log_review.json")
+
+# Analyze the vulnerability scan results
+analyze_open_ports(scan_results)
+
+# Analyze the event log results
+analyze_events(event_results)
+
